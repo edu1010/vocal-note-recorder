@@ -160,6 +160,7 @@
           <input id="tempoScale" type="range" min="0.5" max="1.5" step="0.05" value="1" />
           <span id="tempoScaleLabel">100%</span>
         </div>
+        <div id="instrumentLegend" class="instrument-legend" aria-label="Colores de instrumento"></div>
         <div class="piano-roll-wrap">
           <canvas id="pianoRollCanvas" width="1400" height="420"></canvas>
           <div id="pianoKeys" class="piano-keys" aria-label="Teclado"></div>
@@ -199,6 +200,8 @@
               <input id="manualNoteDuration" type="number" min="0.05" step="0.05" value="0.5" />
             </label>
             <button id="addNoteButton" type="button" disabled>Añadir nota</button>
+            <button id="applyInstrumentButton" type="button" disabled>Instrumento a selección</button>
+            <button id="applyInstrumentAllButton" type="button" disabled>Instrumento a todas</button>
             <button id="removeSelectedNoteButton" type="button" disabled>Quitar selección</button>
             <button id="removeLastNoteButton" type="button" disabled>Quitar última</button>
           </div>

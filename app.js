@@ -5,6 +5,100 @@ const A4_FREQ = 440;
 const SAMPLE_WINDOW = 2048;
 const MIDI_PPQ = 480;
 const DEFAULT_BPM = 120;
+const SAMPLE_MIDIS = [36, 48, 60, 72, 84, 96];
+
+const INSTRUMENTS = {
+  0: {
+    name: "Piano acústico",
+    folder: "acoustic_grand_piano",
+    color: "#13795b",
+    gain: 0.9,
+    attack: 0.005,
+    release: 0.24,
+    sustain: false,
+    fallback: { type: "sine", filterType: "lowpass", filterFrequency: 3600, gain: 0.24, attack: 0.006, sustain: 0.32, release: 0.16 },
+  },
+  4: {
+    name: "Piano eléctrico",
+    folder: "electric_piano_1",
+    color: "#22577a",
+    gain: 0.85,
+    attack: 0.006,
+    release: 0.2,
+    sustain: false,
+    fallback: { type: "triangle", filterType: "lowpass", filterFrequency: 4200, gain: 0.2, attack: 0.006, sustain: 0.34, release: 0.18 },
+  },
+  11: {
+    name: "Vibráfono",
+    folder: "vibraphone",
+    color: "#6d7f2c",
+    gain: 0.8,
+    attack: 0.005,
+    release: 0.32,
+    sustain: false,
+    fallback: { type: "sine", filterType: "lowpass", filterFrequency: 5000, gain: 0.24, attack: 0.005, sustain: 0.22, release: 0.36 },
+  },
+  24: {
+    name: "Guitarra nylon",
+    folder: "acoustic_guitar_nylon",
+    color: "#b97800",
+    gain: 0.95,
+    attack: 0.004,
+    release: 0.18,
+    sustain: false,
+    fallback: { type: "triangle", filterType: "lowpass", filterFrequency: 1800, gain: 0.22, attack: 0.012, sustain: 0.36, release: 0.14 },
+  },
+  40: {
+    name: "Violín",
+    folder: "violin",
+    color: "#9b3c7a",
+    gain: 0.72,
+    attack: 0.04,
+    release: 0.26,
+    sustain: true,
+    fallback: { type: "sawtooth", filterType: "lowpass", filterFrequency: 2400, gain: 0.13, attack: 0.08, sustain: 0.7, release: 0.25 },
+  },
+  48: {
+    name: "Cuerdas",
+    folder: "string_ensemble_1",
+    color: "#6f55a3",
+    gain: 0.68,
+    attack: 0.07,
+    release: 0.32,
+    sustain: true,
+    fallback: { type: "sawtooth", filterType: "lowpass", filterFrequency: 2400, gain: 0.13, attack: 0.08, sustain: 0.7, release: 0.25 },
+  },
+  52: {
+    name: "Coro",
+    folder: "choir_aahs",
+    color: "#7a6b2f",
+    gain: 0.7,
+    attack: 0.08,
+    release: 0.34,
+    sustain: true,
+    fallback: { type: "sawtooth", filterType: "lowpass", filterFrequency: 2200, gain: 0.12, attack: 0.09, sustain: 0.72, release: 0.28 },
+  },
+  73: {
+    name: "Flauta",
+    folder: "flute",
+    color: "#2c7f8f",
+    gain: 0.8,
+    attack: 0.025,
+    release: 0.18,
+    sustain: true,
+    fallback: { type: "sine", filterType: "bandpass", filterFrequency: 1200, gain: 0.18, attack: 0.03, sustain: 0.56, release: 0.16 },
+  },
+  80: {
+    name: "Lead synth",
+    folder: "lead_1_square",
+    color: "#c33a2b",
+    gain: 0.72,
+    attack: 0.005,
+    release: 0.12,
+    sustain: true,
+    fallback: { type: "square", filterType: "lowpass", filterFrequency: 3200, gain: 0.12, attack: 0.01, sustain: 0.64, release: 0.1 },
+  },
+};
 
 const elements = {
   recordButton: document.getElementById("recordButton"),
@@ -40,6 +134,7 @@ const elements = {
   noteCount: document.getElementById("noteCount"),
   rangeText: document.getElementById("rangeText"),
   instrumentSelect: document.getElementById("instrumentSelect"),
+  instrumentLegend: document.getElementById("instrumentLegend"),
   voiceLayerToggle: document.getElementById("voiceLayerToggle"),
   midiLayerToggle: document.getElementById("midiLayerToggle"),
   tempoScale: document.getElementById("tempoScale"),
@@ -48,6 +143,8 @@ const elements = {
   manualNoteStart: document.getElementById("manualNoteStart"),
   manualNoteDuration: document.getElementById("manualNoteDuration"),
   addNoteButton: document.getElementById("addNoteButton"),
+  applyInstrumentButton: document.getElementById("applyInstrumentButton"),
+  applyInstrumentAllButton: document.getElementById("applyInstrumentAllButton"),
   removeSelectedNoteButton: document.getElementById("removeSelectedNoteButton"),
   removeLastNoteButton: document.getElementById("removeLastNoteButton"),
   selectedNoteText: document.getElementById("selectedNoteText"),
@@ -90,6 +187,7 @@ const state = {
   isRecording: false,
   isPaused: false,
   rafId: null,
+  soundfontCache: new Map(),
   playback: {
     voice: null,
     audioBuffer: null,
@@ -138,6 +236,32 @@ function noteLabel(midi) {
   return `${NOTE_NAMES[index]}${Math.floor(midi / 12) - 1}`;
 }
 
+function sampleNoteLabel(midi) {
+  const noteNames = ["C", "Cs", "D", "Ds", "E", "F", "Fs", "G", "Gs", "A", "As", "B"];
+  const index = ((midi % 12) + 12) % 12;
+  return `${noteNames[index]}${Math.floor(midi / 12) - 1}`;
+}
+
+function currentProgram() {
+  return Number(elements.instrumentSelect.value) || 0;
+}
+
+function getInstrument(program) {
+  return INSTRUMENTS[program] || INSTRUMENTS[0];
+}
+
+function noteProgram(note) {
+  return Number.isFinite(note?.program) ? note.program : currentProgram();
+}
+
+function instrumentName(program) {
+  return getInstrument(program).name;
+}
+
+function instrumentColor(program) {
+  return getInstrument(program).color;
+}
+
 function setStatus(mode, text) {
   elements.recordStatus.className = `status-dot ${mode}`;
   elements.statusText.textContent = text;
@@ -168,6 +292,8 @@ function setControls() {
   elements.importAudioTopButton.disabled = state.isRecording;
   elements.importAudioButton.disabled = state.isRecording;
   elements.addNoteButton.disabled = !hasTake || state.isRecording;
+  elements.applyInstrumentButton.disabled = !hasTake || state.isRecording || state.selectedNoteIndex === null;
+  elements.applyInstrumentAllButton.disabled = !hasTake || state.isRecording || !getSelectedTake()?.notes.length;
   elements.removeLastNoteButton.disabled = !hasTake || state.isRecording || !getSelectedTake()?.notes.length;
   elements.removeSelectedNoteButton.disabled = !hasTake || state.isRecording || state.selectedNoteIndex === null;
   elements.deleteTakeButton.disabled = !hasTake || state.isRecording;
@@ -773,7 +899,9 @@ function renderNoteList() {
     chip.type = "button";
     chip.className = "note-chip";
     chip.classList.toggle("selected", state.selectedNoteIndex === index);
-    chip.innerHTML = `<span>${formatTime(note.start)} - ${formatTime(note.end)}</span><strong>${note.name}${note.octave}</strong>`;
+    const program = noteProgram(note);
+    chip.style.borderLeft = `5px solid ${instrumentColor(program)}`;
+    chip.innerHTML = `<span>${formatTime(note.start)} - ${formatTime(note.end)} · ${instrumentName(program)}</span><strong>${note.name}${note.octave}</strong>`;
     chip.addEventListener("click", () => selectNote(index));
     elements.noteList.appendChild(chip);
   });
@@ -786,7 +914,7 @@ function renderSelectedNoteState() {
     elements.selectedNoteText.textContent = "Sin nota seleccionada";
     return;
   }
-  elements.selectedNoteText.textContent = `${selected.name}${selected.octave} · ${formatTime(selected.start)} - ${formatTime(selected.end)}`;
+  elements.selectedNoteText.textContent = `${selected.name}${selected.octave} · ${instrumentName(noteProgram(selected))} · ${formatTime(selected.start)} - ${formatTime(selected.end)}`;
 }
 
 function selectNote(index) {
@@ -795,6 +923,7 @@ function selectNote(index) {
   const note = take.notes[index];
   state.selectedNoteIndex = index;
   elements.manualNoteSelect.value = String(note.midi);
+  elements.instrumentSelect.value = String(noteProgram(note));
   elements.manualNoteStart.value = note.start.toFixed(2);
   elements.manualNoteDuration.value = Math.max(0.05, note.end - note.start).toFixed(2);
   renderAll();
@@ -812,13 +941,27 @@ function populateManualNoteSelect() {
   elements.manualNoteSelect.value = "60";
 }
 
+function renderInstrumentLegend() {
+  elements.instrumentLegend.textContent = "";
+  Object.entries(INSTRUMENTS).forEach(([program, instrument]) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "instrument-chip";
+    item.innerHTML = `<i style="background:${instrument.color}"></i>${instrument.name}`;
+    item.addEventListener("click", () => {
+      elements.instrumentSelect.value = program;
+    });
+    elements.instrumentLegend.appendChild(item);
+  });
+}
+
 function addManualNote() {
   const take = getSelectedTake();
   if (!take) return;
   const midi = Number(elements.manualNoteSelect.value);
   const start = Math.max(0, Number(elements.manualNoteStart.value) || 0);
   const duration = Math.max(0.05, Number(elements.manualNoteDuration.value) || 0.5);
-  const note = createManualNote(midi, start, start + duration);
+  const note = createManualNote(midi, start, start + duration, currentProgram());
   take.notes.push(note);
   take.duration = Math.max(take.duration, note.end);
   sortTakeNotes(take);
@@ -842,7 +985,7 @@ function removeLastNote() {
   syncSelectedTakeNotes();
 }
 
-function createManualNote(midi, start, end) {
+function createManualNote(midi, start, end, program) {
   const note = noteFromFrequency(frequencyFromMidi(midi));
   return {
     midi,
@@ -856,8 +999,26 @@ function createManualNote(midi, start, end) {
     avgCents: 0,
     confidence: 1,
     samples: 1,
+    program,
     manual: true,
   };
+}
+
+function applyInstrumentToSelectedNote() {
+  const take = getSelectedTake();
+  if (!take || state.selectedNoteIndex === null || !take.notes[state.selectedNoteIndex]) return;
+  take.notes[state.selectedNoteIndex].program = currentProgram();
+  syncSelectedTakeNotes();
+}
+
+function applyInstrumentToAllNotes() {
+  const take = getSelectedTake();
+  if (!take) return;
+  const program = currentProgram();
+  take.notes.forEach((note) => {
+    note.program = program;
+  });
+  syncSelectedTakeNotes();
 }
 
 function sortTakeNotes(take) {
@@ -1005,8 +1166,7 @@ function drawNotesTimeline(ctx, width, height, notes, duration, progress = null,
     const x = 64 + (note.start / safeDuration) * (width - 74);
     const endX = 64 + (note.end / safeDuration) * (width - 74);
     const y = topPad + ((maxMidi - note.midi) / range) * drawHeight;
-    const hue = (index * 37) % 360;
-    ctx.fillStyle = `hsl(${hue} 48% 42%)`;
+    ctx.fillStyle = instrumentColor(noteProgram(note));
     roundRect(ctx, x, y - 10, Math.max(6, endX - x), 20, 6);
     ctx.fill();
     if (selectedIndex === index) {
@@ -1078,7 +1238,10 @@ async function playMidiMode() {
   await ensureAudioContext();
   const tempoScale = Number(elements.tempoScale.value);
   if (elements.voiceLayerToggle.checked) playVoiceLayer(take, 0, tempoScale, elements.midiLayerToggle.checked ? 0.62 : 1);
-  if (elements.midiLayerToggle.checked) scheduleMidiNotes(take, tempoScale);
+  if (elements.midiLayerToggle.checked) {
+    setStatus("idle", "Cargando instrumentos");
+    await scheduleMidiNotes(take, tempoScale);
+  }
   state.playback.duration = take.duration / tempoScale;
   startPlaybackTicker(take, true);
 }
@@ -1089,7 +1252,8 @@ async function playMidiOnly() {
   stopPlayback();
   await ensureAudioContext();
   const tempoScale = Number(elements.tempoScale.value);
-  scheduleMidiNotes(take, tempoScale);
+  setStatus("idle", "Cargando instrumentos");
+  await scheduleMidiNotes(take, tempoScale);
   state.playback.duration = take.duration / tempoScale;
   startPlaybackTicker(take, true);
 }
@@ -1110,23 +1274,80 @@ function playVoiceLayer(take, offset = 0, tempoScale = 1, volume = 1) {
   state.playback.nodes.push(source, gain);
 }
 
-function scheduleMidiNotes(take, tempoScale = 1) {
+async function scheduleMidiNotes(take, tempoScale = 1) {
   const now = state.audioContext.currentTime + 0.04;
-  const program = Number(elements.instrumentSelect.value);
-  take.notes.forEach((note) => {
+  const preparedNotes = await Promise.all(take.notes.map(async (note) => {
+    const program = noteProgram(note);
+    const instrument = getInstrument(program);
+    const sample = await loadNearestSample(instrument, note.midi);
+    return { note, program, instrument, sample };
+  }));
+
+  preparedNotes.forEach(({ note, program, instrument, sample }) => {
     const start = now + note.start / tempoScale;
     const duration = Math.max(0.06, (note.end - note.start) / tempoScale);
-    const synthNodes = createInstrumentVoice(note.midi, program, start, duration);
-    state.playback.nodes.push(...synthNodes);
+    const nodes = sample
+      ? createSampleInstrumentVoice(note.midi, sample, instrument, start, duration)
+      : createSyntheticInstrumentVoice(note.midi, program, start, duration);
+    state.playback.nodes.push(...nodes);
   });
 }
 
-function createInstrumentVoice(midi, program, start, duration) {
+async function loadNearestSample(instrument, midi) {
+  const sampleMidi = SAMPLE_MIDIS.reduce((best, candidate) => (
+    Math.abs(candidate - midi) < Math.abs(best - midi) ? candidate : best
+  ), SAMPLE_MIDIS[0]);
+  const cacheKey = `${instrument.folder}:${sampleMidi}`;
+  if (state.soundfontCache.has(cacheKey)) {
+    return state.soundfontCache.get(cacheKey);
+  }
+
+  try {
+    const url = `samples/FluidR3_GM/${instrument.folder}/${sampleNoteLabel(sampleMidi)}.mp3`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = await state.audioContext.decodeAudioData(arrayBuffer.slice(0));
+    const sample = { buffer, midi: sampleMidi };
+    state.soundfontCache.set(cacheKey, sample);
+    return sample;
+  } catch (error) {
+    console.warn(`No se pudo cargar sample de ${instrument.name}.`, error);
+    state.soundfontCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+function createSampleInstrumentVoice(midi, sample, instrument, start, duration) {
+  const source = state.audioContext.createBufferSource();
+  const gain = state.audioContext.createGain();
+  source.buffer = sample.buffer;
+  source.playbackRate.setValueAtTime(frequencyFromMidi(midi) / frequencyFromMidi(sample.midi), start);
+
+  if (instrument.sustain && sample.buffer.duration > 0.4) {
+    source.loop = true;
+    source.loopStart = Math.min(0.12, sample.buffer.duration * 0.25);
+    source.loopEnd = Math.max(source.loopStart + 0.05, sample.buffer.duration - 0.08);
+  }
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, instrument.gain), start + instrument.attack);
+  gain.gain.setValueAtTime(Math.max(0.0001, instrument.gain * 0.85), Math.max(start + instrument.attack, start + duration - 0.02));
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration + instrument.release);
+
+  source.connect(gain);
+  gain.connect(state.audioContext.destination);
+  source.start(start);
+  source.stop(start + duration + instrument.release + 0.04);
+  return [source, gain];
+}
+
+function createSyntheticInstrumentVoice(midi, program, start, duration) {
   const frequency = frequencyFromMidi(midi);
   const osc = state.audioContext.createOscillator();
   const gain = state.audioContext.createGain();
   const filter = state.audioContext.createBiquadFilter();
-  const settings = instrumentSettings(program);
+  const settings = getInstrument(program).fallback;
   osc.type = settings.type;
   osc.frequency.setValueAtTime(frequency, start);
   filter.type = settings.filterType;
@@ -1250,7 +1471,7 @@ function exportCsv() {
   const take = getSelectedTake();
   if (!take) return;
   const rows = [
-    ["start_seconds", "end_seconds", "duration_seconds", "note", "octave", "midi", "avg_frequency", "avg_cents", "confidence"],
+    ["start_seconds", "end_seconds", "duration_seconds", "note", "octave", "midi", "instrument", "program", "avg_frequency", "avg_cents", "confidence"],
     ...take.notes.map((note) => [
       note.start.toFixed(3),
       note.end.toFixed(3),
@@ -1258,6 +1479,8 @@ function exportCsv() {
       note.name,
       note.octave,
       note.midi,
+      instrumentName(noteProgram(note)),
+      noteProgram(note),
       note.avgFrequency.toFixed(2),
       note.avgCents.toFixed(1),
       note.confidence.toFixed(3),
@@ -1290,12 +1513,22 @@ function buildMidiFile(notes, program = 0) {
   const events = [];
   const secondsToTicks = (seconds) => Math.round(seconds * (DEFAULT_BPM / 60) * MIDI_PPQ);
   events.push({ tick: 0, data: [0xff, 0x51, 0x03, 0x07, 0xa1, 0x20] });
-  events.push({ tick: 0, data: [0xc0, clampByte(program)] });
+
+  const programs = Array.from(new Set(notes.map((note) => Number.isFinite(note.program) ? note.program : program)));
+  const channelByProgram = new Map();
+  programs.slice(0, 15).forEach((programNumber, index) => {
+    const channel = index >= 9 ? index + 1 : index;
+    channelByProgram.set(programNumber, channel);
+    events.push({ tick: 0, data: [0xc0 | channel, clampByte(programNumber)] });
+  });
+
   notes.forEach((note) => {
+    const noteProgramNumber = Number.isFinite(note.program) ? note.program : program;
+    const channel = channelByProgram.get(noteProgramNumber) ?? 0;
     const startTick = secondsToTicks(note.start);
     const endTick = Math.max(startTick + 1, secondsToTicks(note.end));
-    events.push({ tick: startTick, data: [0x90, clampByte(note.midi), 92] });
-    events.push({ tick: endTick, data: [0x80, clampByte(note.midi), 0] });
+    events.push({ tick: startTick, data: [0x90 | channel, clampByte(note.midi), 92] });
+    events.push({ tick: endTick, data: [0x80 | channel, clampByte(note.midi), 0] });
   });
   events.sort((a, b) => a.tick - b.tick || (a.data[0] === 0x80 ? -1 : 1));
 
@@ -1386,6 +1619,8 @@ function setupEvents() {
   elements.importAudioButton.addEventListener("click", () => elements.audioFileInput.click());
   elements.audioFileInput.addEventListener("change", () => importAudioFile().catch(showError));
   elements.addNoteButton.addEventListener("click", addManualNote);
+  elements.applyInstrumentButton.addEventListener("click", applyInstrumentToSelectedNote);
+  elements.applyInstrumentAllButton.addEventListener("click", applyInstrumentToAllNotes);
   elements.removeSelectedNoteButton.addEventListener("click", removeSelectedNote);
   elements.removeLastNoteButton.addEventListener("click", removeLastNote);
   elements.exportWavButton.addEventListener("click", exportWav);
@@ -1445,6 +1680,7 @@ function bootstrap() {
     elements.recordButton.disabled = true;
   }
   populateManualNoteSelect();
+  renderInstrumentLegend();
   setupTabs();
   setupEvents();
   renderAll();

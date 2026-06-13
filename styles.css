@@ -452,6 +452,34 @@ input[type="range"] {
   padding: 0 12px;
 }
 
+.instrument-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.instrument-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.instrument-chip i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
@@ -487,7 +515,7 @@ input[type="range"] {
 
 .editor-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1fr repeat(3, minmax(120px, 0.8fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 10px;
   align-items: end;
 }
