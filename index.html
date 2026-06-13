@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AudioNotes</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AudioNotes</p>
+          <h1>Grabador vocal con notas en vivo</h1>
+        </div>
+        <div class="status-card" aria-live="polite">
+          <span id="recordStatus" class="status-dot idle"></span>
+          <span id="statusText">Listo</span>
+          <strong id="recordTimer">00:00.0</strong>
+        </div>
+      </header>
+
+      <section class="transport-panel" aria-label="Controles de transporte">
+        <button id="recordButton" class="primary-action" type="button">
+          <span class="icon">●</span>
+          Grabar
+        </button>
+        <button id="importAudioTopButton" type="button">
+          <span class="icon">⇧</span>
+          Importar audio
+        </button>
+        <button id="pauseButton" type="button" disabled>
+          <span class="icon">Ⅱ</span>
+          Pausar
+        </button>
+        <button id="stopButton" type="button" disabled>
+          <span class="icon">■</span>
+          Detener
+        </button>
+        <button id="playVoiceButton" type="button" disabled>
+          <span class="icon">▶</span>
+          Voz
+        </button>
+        <button id="playMidiButton" type="button" disabled>
+          <span class="icon">♪</span>
+          MIDI
+        </button>
+        <button id="playMidiOnlyButton" type="button" disabled>
+          <span class="icon">♫</span>
+          Solo MIDI
+        </button>
+        <button id="stopPlaybackButton" type="button" disabled>
+          <span class="icon">×</span>
+          Parar
+        </button>
+      </section>
+
+      <section class="live-grid">
+        <article class="note-stage">
+          <div class="note-readout">
+            <span id="noteName">--</span>
+            <small id="octaveText">Octava --</small>
+          </div>
+          <div class="pitch-meta">
+            <span id="frequencyText">-- Hz</span>
+            <span id="centsText">-- cents</span>
+            <span id="confidenceText">Señal --</span>
+          </div>
+          <div class="tuner" aria-label="Afinador">
+            <span>-50</span>
+            <div class="tuner-track">
+              <div class="tuner-center"></div>
+              <div id="tunerNeedle" class="tuner-needle"></div>
+            </div>
+            <span>+50</span>
+          </div>
+        </article>
+
+        <article class="meter-panel">
+          <div class="meter-header">
+            <span>Entrada</span>
+            <strong id="levelText">0%</strong>
+          </div>
+          <div class="level-meter">
+            <div id="levelBar"></div>
+          </div>
+          <div class="settings-row">
+            <label for="sensitivityRange">Sensibilidad</label>
+            <input id="sensitivityRange" type="range" min="0.01" max="0.16" step="0.005" value="0.035" />
+          </div>
+          <div class="settings-row">
+            <label for="minNoteDuration">Nota min.</label>
+            <input id="minNoteDuration" type="range" min="60" max="600" step="20" value="140" />
+            <span id="minNoteDurationLabel">140 ms</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="visual-area">
+        <div class="section-heading">
+          <div>
+            <h2>Onda de sonido</h2>
+            <p>Visualización en tiempo real y de la toma actual.</p>
+          </div>
+          <div class="macro-strip" aria-label="Macros">
+            <kbd>Espacio</kbd>
+            <kbd>R</kbd>
+            <kbd>P</kbd>
+            <kbd>M</kbd>
+          </div>
+        </div>
+        <canvas id="waveCanvas" width="1400" height="320"></canvas>
+      </section>
+
+      <section class="tabs" aria-label="Vistas">
+        <button class="tab-button active" data-tab="analysis" type="button">Notas</button>
+        <button class="tab-button" data-tab="piano" type="button">Piano MIDI</button>
+        <button class="tab-button" data-tab="export" type="button">Exportar</button>
+      </section>
+
+      <section id="analysisTab" class="tab-panel active">
+        <div class="section-heading">
+          <div>
+            <h2>Mapa musical de la grabación</h2>
+            <p>Las notas detectadas se agrupan por duración para formar una línea melódica.</p>
+          </div>
+          <div class="summary-pills">
+            <span id="takeCount">0 tomas</span>
+            <span id="noteCount">0 notas</span>
+            <span id="rangeText">Rango --</span>
+          </div>
+        </div>
+        <canvas id="noteCanvas" width="1400" height="360"></canvas>
+        <div id="noteList" class="note-list" aria-label="Lista de notas"></div>
+      </section>
+
+      <section id="pianoTab" class="tab-panel">
+        <div class="piano-controls">
+          <label for="instrumentSelect">Instrumento</label>
+          <select id="instrumentSelect">
+            <option value="0">Piano acústico</option>
+            <option value="4">Piano eléctrico</option>
+            <option value="11">Vibráfono</option>
+            <option value="24">Guitarra nylon</option>
+            <option value="40">Violín</option>
+            <option value="48">Cuerdas</option>
+            <option value="52">Coro</option>
+            <option value="73">Flauta</option>
+            <option value="80">Lead synth</option>
+          </select>
+          <label class="toggle">
+            <input id="voiceLayerToggle" type="checkbox" checked />
+            <span>Voz original</span>
+          </label>
+          <label class="toggle">
+            <input id="midiLayerToggle" type="checkbox" checked />
+            <span>Notas detectadas</span>
+          </label>
+          <label for="tempoScale">Velocidad</label>
+          <input id="tempoScale" type="range" min="0.5" max="1.5" step="0.05" value="1" />
+          <span id="tempoScaleLabel">100%</span>
+        </div>
+        <div class="piano-roll-wrap">
+          <canvas id="pianoRollCanvas" width="1400" height="420"></canvas>
+          <div id="pianoKeys" class="piano-keys" aria-label="Teclado"></div>
+        </div>
+        <div class="note-editor">
+          <div class="section-heading">
+            <div>
+              <h2>Editor MIDI</h2>
+              <p>Añade notas manuales o selecciona una nota de la lista para quitarla del MIDI.</p>
+            </div>
+            <span id="selectedNoteText" class="editor-state">Sin nota seleccionada</span>
+          </div>
+          <div class="editor-grid">
+            <label>
+              Nota
+              <select id="manualNoteSelect">
+                <option value="60">Do4</option>
+                <option value="61">Do#4</option>
+                <option value="62">Re4</option>
+                <option value="63">Re#4</option>
+                <option value="64">Mi4</option>
+                <option value="65">Fa4</option>
+                <option value="66">Fa#4</option>
+                <option value="67">Sol4</option>
+                <option value="68">Sol#4</option>
+                <option value="69">La4</option>
+                <option value="70">La#4</option>
+                <option value="71">Si4</option>
+              </select>
+            </label>
+            <label>
+              Inicio (s)
+              <input id="manualNoteStart" type="number" min="0" step="0.05" value="0" />
+            </label>
+            <label>
+              Duración (s)
+              <input id="manualNoteDuration" type="number" min="0.05" step="0.05" value="0.5" />
+            </label>
+            <button id="addNoteButton" type="button" disabled>Añadir nota</button>
+            <button id="removeSelectedNoteButton" type="button" disabled>Quitar selección</button>
+            <button id="removeLastNoteButton" type="button" disabled>Quitar última</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="exportTab" class="tab-panel">
+        <div class="import-panel">
+          <div>
+            <h2>Importar audio</h2>
+            <p>Añade un archivo de audio para analizar sus notas y crear una toma MIDI.</p>
+          </div>
+          <div class="import-actions">
+            <button id="importAudioButton" type="button">Importar audio</button>
+            <span id="importStatus">Sin archivo importado</span>
+          </div>
+          <input id="audioFileInput" type="file" accept="audio/*" hidden />
+        </div>
+        <div class="export-grid">
+          <button id="exportWavButton" type="button" disabled>Exportar WAV</button>
+          <button id="exportWebmButton" type="button" disabled>Exportar audio</button>
+          <button id="exportMidiButton" type="button" disabled>Exportar MIDI</button>
+          <button id="exportJsonButton" type="button" disabled>Exportar JSON</button>
+          <button id="exportCsvButton" type="button" disabled>Exportar CSV</button>
+          <button id="deleteTakeButton" class="danger-action" type="button" disabled>Eliminar toma</button>
+        </div>
+        <div class="take-panel">
+          <h2>Tomas</h2>
+          <div id="takeList" class="take-list"></div>
+        </div>
+      </section>
+    </main>
+
+    <template id="takeTemplate">
+      <button class="take-item" type="button">
+        <span class="take-title"></span>
+        <span class="take-meta"></span>
+      </button>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
